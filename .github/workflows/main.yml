@@ -1,0 +1,36 @@
+name: Sync Fork with Master
+
+on:
+  schedule:
+    # This cron syntax means "every day at midnight"
+    - cron: '0 0 * * *'  # Adjust time as needed
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/wled/WLED.git
+
+      - name: Fetch changes from upstream
+        run: git fetch upstream
+
+      - name: Merge changes from upstream/master
+        run: |
+          git checkout master  # or 'main' if that's your default branch
+          git merge upstream/master  # or 'upstream/main' if your main branch is called "main"
+        
+      - name: Push changes to fork
+        run: git push origin master  # or 'main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # This token is automatically available to Actions
