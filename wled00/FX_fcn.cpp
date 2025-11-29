@@ -1687,10 +1687,11 @@ void WS2812FX::setTransitionMode(bool t) {
 // rare circumstances are: setting FPS to high number (i.e. 120) and have very slow effect that will need more
 // time than 2 * _frametime (1000/FPS) to draw content
 void WS2812FX::waitForIt() {
-  unsigned long maxWait = millis() + 2*getFrameTime() + 100; // TODO: this needs a proper fix for timeout! see #4779
-  while (isServicing() && maxWait > millis()) delay(1);
+  unsigned long waitStart = millis();
+  unsigned long maxWait = 2*getFrameTime() + 100; // TODO: this needs a proper fix for timeout! see #4779
+  while (isServicing() && (millis() - waitStart < maxWait)) delay(1); // safe even when millis() rolls over
   #ifdef WLED_DEBUG
-  if (millis() >= maxWait) DEBUG_PRINTLN(F("Waited for strip to finish servicing."));
+  if (millis()-waitStart >= maxWait) DEBUG_PRINTLN(F("Waited for strip to finish servicing."));
   #endif
 };
 
@@ -1997,6 +1998,7 @@ bool WS2812FX::deserializeMap(unsigned n) {
     Segment::maxWidth  = min(max(root[F("width")].as<int>(), 1), 255);
     Segment::maxHeight = min(max(root[F("height")].as<int>(), 1), 255);
     isMatrix = true;
+    DEBUG_PRINTF_P(PSTR("LED map width=%d, height=%d\n"), Segment::maxWidth, Segment::maxHeight);
   }
 
   d_free(customMappingTable);
@@ -2020,9 +2022,9 @@ bool WS2812FX::deserializeMap(unsigned n) {
         } while (i < 32);
         if (!foundDigit) break;
         int index = atoi(number);
-        if (index < 0 || index > 16384) index = 0xFFFF;
+        if (index < 0 || index > 65535) index = 0xFFFF; // prevent integer wrap around
         customMappingTable[customMappingSize++] = index;
-        if (customMappingSize > getLengthTotal()) break;
+        if (customMappingSize >= getLengthTotal()) break;
       } else break; // there was nothing to read, stop
     }
     currentLedmap = n;
@@ -2032,7 +2034,7 @@ bool WS2812FX::deserializeMap(unsigned n) {
     DEBUG_PRINT(F("Loaded ledmap:"));
     for (unsigned i=0; i<customMappingSize; i++) {
       if (!(i%Segment::maxWidth)) DEBUG_PRINTLN();
-      DEBUG_PRINTF_P(PSTR("%4d,"), customMappingTable[i]);
+      DEBUG_PRINTF_P(PSTR("%4d,"), customMappingTable[i] < 0xFFFFU ? customMappingTable[i] : -1);
     }
     DEBUG_PRINTLN();
     #endif
